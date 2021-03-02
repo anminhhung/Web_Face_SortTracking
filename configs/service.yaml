@@ -1,0 +1,4 @@
+SERVICE:
+  HOST: '0.0.0.0'
+  PORT: '5100'
+  LOG_PATH: "logfile"
