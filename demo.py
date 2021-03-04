@@ -51,7 +51,7 @@ def detect_face_PCN():
 
         fps = int(1 / (end - start))
 
-        # cv2.imwrite("frame.jpg", frame)
+        cv2.imwrite("frame.jpg", frame)
 
         print("FPS: ", fps)
 

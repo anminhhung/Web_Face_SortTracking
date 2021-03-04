@@ -23,3 +23,15 @@ def write_text(image, text, x, y):
     image = cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
 
     return image
+
+def get_crop_track(image_path):
+    while True:
+        try:
+            image = cv2.imread(image_path)
+            imgencode = cv2.imencode('.jpg', image)[1]
+            stringData = imgencode.tostring()
+
+            yield (b'--frame\r\n'
+                   b'Content-Type: text/plain\r\n\r\n'+stringData+b'\r\n')
+        except:
+            pass
