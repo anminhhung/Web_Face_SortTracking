@@ -10,10 +10,12 @@ import os
 from imutils.video import VideoStream
 
 from utils.parser import get_config
-from utils.draw_image import draw_list_bbox_maxmin, draw_bbox_maxmin
+from utils.draw_image import draw_list_bbox_maxmin, draw_bbox_maxmin, write_text
 
 from src.detect.dnn.detect_dnn import detect_face_ssd
 from src.tracking.sort_tracking import * 
+from src.PCN.PyPCN import *
+
 
 cfg = get_config()
 cfg.merge_from_file('configs/face_detect.yaml')
@@ -57,25 +59,59 @@ def index():
 def run_tracking():
     # cap = cv2.VideoCapture(0)
     global CAP, OUTPUT_FRAME, LOCK
+    SetThreadCount(1)
+    path = '/usr/local/share/pcn/'
+    detection_model_path = c_str(path + "PCN.caffemodel")
+    pcn1_proto = c_str(path + "PCN-1.prototxt")
+    pcn2_proto = c_str(path + "PCN-2.prototxt")
+    pcn3_proto = c_str(path + "PCN-3.prototxt")
+    tracking_model_path = c_str(path + "PCN-Tracking.caffemodel")
+    tracking_proto = c_str(path + "PCN-Tracking.prototxt")
+
+    cap = cv2.VideoCapture()
+    cap.open("{}://{}:{}@{}:{}".format('rtsp', 'admin', 'Admin123', '113.161.51.163', '554'))
+    detector = init_detector(detection_model_path,pcn1_proto,pcn2_proto,pcn3_proto,
+            tracking_model_path,tracking_proto, 
+            40,1.45,0.5,0.5,0.98,30,0.9,1)
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH) 
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT) 
+    fps = cap.get(cv2.CAP_PROP_FPS) 
 
     while True:
         start_time = time.time()
 
         ret, frame = CAP.read()
+        if ret == False:
+            break
 
         ########## MAIN #################
         try:
-            list_face, list_score, list_classes = detect_face_ssd(frame, NET_DNN)
+            start = time.time()
+            face_count = c_int(0)
+            raw_data = frame.ctypes.data_as(POINTER(c_ubyte))
+            windows = detect_track_faces(detector, raw_data, 
+                    int(height), int(width),
+                    pointer(face_count))
+            end = time.time()
+            list_face = []
+            for i in range(face_count.value):
+                face_bbox = DrawFace(windows[i],frame)
+                DrawPoints(windows[i],frame)
+                list_face.append(face_bbox)
 
-            if len(list_face) > 0:
-                list_face = np.array(list_face)
-                # update SORT
-                track_bbs_ids = SORT_TRACKER.update(list_face)
-                for track in track_bbs_ids:
-                    frame = draw_bbox_maxmin(frame, track[:4], True, int(track[4]))
-                # cal fps
-                fps = round(1.0 / (time.time() - start_time), 2)
-                print("fps: ", fps)
+            # update SORT
+            track_bbs_ids = SORT_TRACKER.update(np.array(list_face))
+            for track in track_bbs_ids:
+                # frame = draw_bbox_maxmin(frame, track[:4], True, int(track[4]))
+                frame = write_text(frame, "person_id: " + str(track[4]), int(track[0]), int(track[1]))
+
+            free_faces(windows)
+
+            fps = int(1 / (end - start))
+
+            # cv2.imwrite("frame.jpg", frame)
+
+            print("FPS: ", fps)
 
         except Exception as e:
             with open("logbug.txt", "a+") as f:
@@ -101,6 +137,7 @@ def generate():
                 print("output_frame is None")
                 continue
             
+            OUTPUT_FRAME = imutils.resize(OUTPUT_FRAME, width=400)
             (flag, encodedImage) = cv2.imencode(".jpg", OUTPUT_FRAME)
             # ensure the frame was successfully encoded
             if not flag:

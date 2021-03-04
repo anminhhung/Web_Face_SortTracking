@@ -20,6 +20,6 @@ def draw_bbox_maxmin(image, bbox, view_id=False, track_id=None):
     return image 
 
 def write_text(image, text, x, y):
-    image = cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 2)
+    image = cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
 
     return image
