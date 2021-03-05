@@ -59,6 +59,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__, template_folder='templates')
 
+CAP = cv2.VideoCapture()
+CAP.open("{}://{}:{}@{}:{}".format('rtsp', 'admin', 'Admin123', '113.161.51.163', '554'))
+
 @app.route("/")
 def index():
 	return render_template("index.html")
@@ -75,14 +78,14 @@ def run_tracking():
     tracking_model_path = c_str(path + "PCN-Tracking.caffemodel")
     tracking_proto = c_str(path + "PCN-Tracking.prototxt")
 
-    cap = cv2.VideoCapture()
-    cap.open("{}://{}:{}@{}:{}".format('rtsp', 'admin', 'Admin123', '113.161.51.163', '554'))
+    # cap = cv2.VideoCapture()
+    # cap.open("{}://{}:{}@{}:{}".format('rtsp', 'admin', 'Admin123', '113.161.51.163', '554'))
     detector = init_detector(detection_model_path,pcn1_proto,pcn2_proto,pcn3_proto,
             tracking_model_path,tracking_proto, 
             40,1.45,0.5,0.5,0.98,30,0.9,1)
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH) 
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT) 
-    fps = cap.get(cv2.CAP_PROP_FPS) 
+    width = CAP.get(cv2.CAP_PROP_FRAME_WIDTH) 
+    height = CAP.get(cv2.CAP_PROP_FRAME_HEIGHT) 
+    fps = CAP.get(cv2.CAP_PROP_FPS) 
 
     CNT_CROP = 0
     LIST_TRACK_ID_CROP = [None, None, None]
@@ -91,12 +94,12 @@ def run_tracking():
     while True:
         start_time = time.time()
 
-        ret, frame = cap.read()
+        ret, frame = CAP.read()
         _frame = frame.copy()
 
         ########## MAIN #################
         try:
-            if cnt % 5 == 0:
+            if cnt % 7 == 0:
                 start = time.time()
                 face_count = c_int(0)
                 # print("frame.shape: ", frame.shape)
@@ -116,22 +119,26 @@ def run_tracking():
                 for track in track_bbs_ids:
                     frame = write_text(frame, "person_id: " + str(track[4]), int(track[0]), int(track[1]))
                     # crop frame
-                    # print("track: ", track)
-                    image_crop = _frame[int(track[1]):int(track[1])+(int(track[3])-int(track[1])), \
-                                        int(track[0]):int(track[0])+(int(track[2])-int(track[0]))]
-                    image_crop_path = None
-                    if track[4] != LIST_TRACK_ID_CROP[CNT_CROP]:
-                        if CNT_CROP <=2:
-                            image_crop_path = LIST_CLASS_OUT[CNT_CROP]
-                            CNT_CROP += 1
-                            LIST_TRACK_ID_CROP[CNT_CROP] = track[4]
-                        else:
-                            CNT_CROP = 0 
-                            image_crop_path = LIST_CLASS_OUT[CNT_CROP]
-                            CNT_CROP += 1
-                            LIST_TRACK_ID_CROP[CNT_CROP] = track[4]
+            
+                    # image_crop = _frame[int(track[1]):int(track[1])+(int(track[3])-int(track[1])), \
+                    #                     int(track[0]):int(track[0])+(int(track[2])-int(track[0]))]
+                    # image_crop_path = None
+                    # try:
+                    #     if track[4] != LIST_TRACK_ID_CROP[CNT_CROP]:
+                    #         if CNT_CROP <=2:
+                    #             image_crop_path = LIST_CLASS_OUT[CNT_CROP]
+                    #             CNT_CROP += 1
+                    #             LIST_TRACK_ID_CROP[CNT_CROP] = track[4]
+                    #         else:
+                    #             CNT_CROP = 0 
+                    #             image_crop_path = LIST_CLASS_OUT[CNT_CROP]
+                    #             CNT_CROP += 1
+                    #             LIST_TRACK_ID_CROP[CNT_CROP] = track[4]
 
-                        cv2.imwrite(image_crop_path, image_crop)
+                    #         cv2.imwrite(image_crop_path, image_crop)
+                    # except Exception as e:
+                    #     print("Error: ", e)
+                    #     pass
 
                 free_faces(windows)
 
@@ -141,20 +148,29 @@ def run_tracking():
 
                 print("FPS: ", fps)
 
-            OUTPUT_FRAME = frame.copy()
-            OUTPUT_FRAME = imutils.resize(OUTPUT_FRAME, width=400)
-            (flag, encodedImage) = cv2.imencode(".jpg", OUTPUT_FRAME)
-            cnt += 1
-
-            yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
-                bytearray(encodedImage) + b'\r\n')
-
+            # OUTPUT_FRAME = frame.copy()
+            # OUTPUT_FRAME = imutils.resize(OUTPUT_FRAME, width=400)
         except Exception as e:
             cnt += 1
             print("Error: ", e)
             with open("logbug.txt", "a+") as f:
                 f.write("{}\n".format(e))
             pass
+
+        with LOCK:
+            OUTPUT_FRAME = frame.copy()
+        # (flag, encodedImage) = cv2.imencode(".jpg", OUTPUT_FRAME)
+        # cnt += 1
+
+        # yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
+        #     bytearray(encodedImage) + b'\r\n')
+
+        # except Exception as e:
+        #     cnt += 1
+        #     print("Error: ", e)
+        #     with open("logbug.txt", "a+") as f:
+        #         f.write("{}\n".format(e))
+        #     pass
 
 def generate():
     global OUTPUT_FRAME, LOCK
@@ -176,19 +192,11 @@ def generate():
 
 @app.route("/video_feed")
 def video_feed():
-	return Response(run_tracking(),
+	return Response(generate(),
 		mimetype = "multipart/x-mixed-replace; boundary=frame")
 
 @app.route('/face/<number_face>')
 def stream_vehicle1(number_face):
-    # try:
-    #     image_path = LIST_CLASS_OUT[int(number_face)]
-        
-    #     print("IMG_PATH vehicle1: ", image_path)
-
-    # except Exception as e:
-    #     print(str(e))
-    #     print(str(traceback.print_exc()))
     return Response(get_crop_track(LIST_CLASS_OUT[int(number_face)-1]),mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
@@ -197,4 +205,4 @@ if __name__ == '__main__':
     t = threading.Thread(target=run_tracking)
     t.daemon = True
     t.start()
-    app.run(host=HOST, port=PORT, debug=True, threaded=True, use_reloader=False)
+    app.run(host=HOST, port=PORT, debug=False, threaded=True, use_reloader=False)
