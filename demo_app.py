@@ -99,7 +99,7 @@ def run_tracking():
 
         ########## MAIN #################
         try:
-            if cnt % 5 == 0:
+            if cnt % 7 == 0:
                 start = time.time()
                 face_count = c_int(0)
                 # print("frame.shape: ", frame.shape)
@@ -145,24 +145,20 @@ def run_tracking():
                 fps = int(1 / (end - start))
 
                 # cv2.imwrite("frame.jpg", frame)
-                with LOCK:
-                    OUTPUT_FRAME = frame.copy()
+
                 print("FPS: ", fps)
 
-            else:
-                with LOCK:
-                    OUTPUT_FRAME = frame.copy()
-
+            # OUTPUT_FRAME = frame.copy()
+            # OUTPUT_FRAME = imutils.resize(OUTPUT_FRAME, width=400)
         except Exception as e:
             cnt += 1
             print("Error: ", e)
             with open("logbug.txt", "a+") as f:
                 f.write("{}\n".format(e))
-                
-            with LOCK:
-                OUTPUT_FRAME = frame.copy()
             pass
 
+        with LOCK:
+            OUTPUT_FRAME = frame.copy()
         # (flag, encodedImage) = cv2.imencode(".jpg", OUTPUT_FRAME)
         # cnt += 1
 
