@@ -140,3 +140,8 @@ myEnv/
 logfile/
 
 logbug.txt
+
+store_frame/
+migrations/
+
+face.db

@@ -200,7 +200,6 @@ def run_tracking():
 
         except Exception as e:
             cnt += 1
-            print("Error: ", e)
                 
             with LOCK:
                 OUTPUT_FRAME = frame.copy()
